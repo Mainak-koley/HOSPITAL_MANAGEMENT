@@ -1,40 +1,32 @@
 from django.db import models
-from django.contrib.auth.models import AbstractUser, PermissionsMixin
+from django.contrib.auth.models import AbstractUser
 
 # Create your models here.
-class User(AbstractUser, PermissionsMixin):
+class User(AbstractUser):
     USER_ROLE = [
         ('role_SU_Doctor' , 'Doctor'), 
         ('role_Pharmacist' , 'Pharmacist'), 
         ('role_Patient' , 'Patient'), 
     ]
+    username = models.CharField(max_length=150, unique=True)
     role = models.CharField(max_length=20 , choices=USER_ROLE , default='role_Patient')
+    email = models.EmailField(unique=True)
+    specialization = models.CharField(max_length=100, blank=True, null=True)
 
     def save(self, *args, **kwargs):
         if self.role == 'role_SU_Doctor':
-            self.is_superuser = True
             self.is_staff = True
+            self.is_superuser = True
         else:
-            self.is_superuser = False
             self.is_staff = False
+            self.is_superuser = False
         super().save(*args, **kwargs)
-    
-class DoctorProfile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='doctor_profile')
-    name = models.CharField(max_length=100)
-    specialist_in = models.CharField(max_length=100)
-    lab_no = models.CharField(max_length=50)
-    verify_token = models.CharField(max_length=10)
-    token = models.CharField(max_length=10, unique=True)
-    used = models.BooleanField(default=False)
 
-def __str__(self):
-    return self.name
+    def __str__(self):
+        return self.username
 
 class PatientProfile(models.Model):
-    createdAt = models.DateTimeField(auto_now=True)
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='patient_profile')
-    name = models.CharField(max_length=100)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="patient_profile")
     gender = models.CharField(max_length=10)
     blood_group = models.CharField(max_length=5)
     dob = models.DateField()
@@ -42,4 +34,4 @@ class PatientProfile(models.Model):
     contact_number = models.CharField(max_length=15)
 
     def __str__(self):
-        return self.name
+        return self.user.username
