@@ -1,13 +1,19 @@
 from django.contrib import admin
-from .models import User, PatientProfile
 from django.contrib.auth.admin import UserAdmin
+from .models import User, PatientProfile, Appointment, Prescription, Billing
 
-admin.site.register([User])
+
 class CustomUserAdmin(UserAdmin):
-    add_fieldsets = UserAdmin.add_fieldsets +('Profile' , {'fields' : ('username' , 'role' , 'email')})
-    fieldsets =  UserAdmin.fieldsets + (
-            ('Profile', {'fields':  ('username' , 'role' , 'email')}), # Add your custom field names
-        )
-    list_display = UserAdmin.list_display + ('username' , 'role' , 'email')
+    fieldsets = UserAdmin.fieldsets + (('Profile', {'fields': ('role',)}),)
+    add_fieldsets = UserAdmin.add_fieldsets + (('Profile', {'fields': ('role',)}),)
+    list_display = ('username','email','first_name','last_name','role','is_staff','is_superuser','is_active',)
 
+    search_fields = ('username', 'email')
+    ordering = ('username',)
+
+
+admin.site.register(User, CustomUserAdmin)
 admin.site.register(PatientProfile)
+admin.site.register(Appointment)
+admin.site.register(Prescription)
+admin.site.register(Billing)

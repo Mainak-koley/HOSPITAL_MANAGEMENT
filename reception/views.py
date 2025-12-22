@@ -1,58 +1,186 @@
-from django.shortcuts import render
+from rest_framework import viewsets, status
 from rest_framework.response import Response
-from .models import User, PatientProfile
-from rest_framework import viewsets
-from rest_framework.views import APIView
-from .serializers import Userserializer, Patientserializer
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework import status
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from django.contrib.auth import get_user_model
+from django.utils import timezone
+from django.shortcuts import get_object_or_404
+from .models import Appointment, PatientProfile, Prescription, Billing
+from .serializers import PatientProfileSerializer, PatientRegisterSerializer, AppointmentSerializer, PrescriptionSerializer, BillingSerializer
+
+User = get_user_model()
+
+
+
+def is_patient(user):
+    return user.role == 'PATIENT'
 
 def is_doctor(user):
-    return user.is_authenticated and user.role == 'role_SU_Doctor'
+    return user.is_superuser
 
-class DoctorViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.filter(role__in=['role_SU_Doctor'])
-    serializer_class = Userserializer
-    permission_classes = [IsAuthenticated]
-
-    def add_doctor(self, request):
-        role = request.data.get('role')
-
-        if role not in ['role_SU_Doctor', 'role_Pharmacist']:
-            return Response({"error": "Invalid role. Only 'doctor' or 'pharmacist' allowed."},status=status.HTTP_400_BAD_REQUEST)
-
-        serializer = Userserializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save(role=role)
-            return Response(serializer.data)
-        return Response({"message": f" Account created successfully!"}, status=status.HTTP_201_CREATED)
-    
-    
-class PharmacistViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.filter(role='role_Pharmacist')
-    serializer_class = Userserializer
-    permission_classes = [IsAuthenticated]
+def is_pharmacist(user):
+    return user.is_staff
 
 
-class PatientViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.filter(role='role_Patient')
-    serializer_class = Userserializer
 
-    def get_permissions(self):
-        if self.action == 'add_patient':
-            return [AllowAny()]
-        return [IsAuthenticated()]
+class AuthViewSet(viewsets.ViewSet):
+    permission_classes = [AllowAny]
 
-    def add_patient(self, request):
-        serializer = Patientserializer(data=request.data)
-
-        if serializer.is_valid():
-            serializer.save(role='patient')
-            return Response(serializer.data)
-        return Response({"message": "Patient registered successfully!"},status=status.HTTP_201_CREATED)
-
+    def create(self, request):
+        serializer = PatientRegisterSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return Response({"message": "Patient registered", "id": user.id})
 
 class PatientProfileViewSet(viewsets.ModelViewSet):
     queryset = PatientProfile.objects.all()
-    serializer_class = Patientserializer
+    serializer_class = PatientProfileSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return PatientProfile.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class AppointmentViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+
+    def list(self, request):
+        if request.user.is_superuser:
+            qs = Appointment.objects.filter(
+                doctor=request.user,
+                appointment_date=timezone.now().date()
+            )
+        else:
+            qs = Appointment.objects.filter(patient=request.user)
+
+        return Response(AppointmentSerializer(qs, many=True).data)
+
+    def create(self, request):
+        if not is_patient(request.user):
+            return Response({"error": "Only patients can book"}, status=403)
+
+        doctor_name = request.data.get("doctor_name")
+        appointment_date = request.data.get("appointment_date")
+
+        if not doctor_name or not appointment_date:
+            return Response(
+                {"error": "doctor_name and appointment_date required"},
+                status=400
+            )
+
+        # CASE-INSENSITIVE doctor search
+        doctor = get_object_or_404(
+            User,
+            username__iexact=doctor_name,
+            is_superuser=True
+        )
+
+        # Token logic (starts from 1 every day)
+        token = Appointment.objects.filter(
+            doctor=doctor,
+            appointment_date=appointment_date
+        ).count() + 1
+
+        appointment = Appointment.objects.create(
+            patient=request.user,
+            doctor=doctor,
+            appointment_date=appointment_date,
+            token_number=token
+        )
+
+        return Response(
+            AppointmentSerializer(appointment).data,
+            status=status.HTTP_201_CREATED
+        )
+
+    def update(self, request, pk=None):
+        if not request.user.is_superuser:
+            return Response({"error": "Only doctor"}, status=403)
+
+        appointment = get_object_or_404(Appointment, id=pk)
+        appointment.status = "COMPLETED"
+        appointment.save()
+
+        return Response({"message": "Appointment closed"})
+
+
+
+
+class PrescriptionViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+
+    def list(self, request):
+        user = request.user
+        if user.is_staff: 
+            qs = Prescription.objects.all()
+        elif user.is_superuser: 
+            qs = Prescription.objects.filter(doctor=user)
+        else: 
+            qs = Prescription.objects.filter(patient=user)
+
+        serializer = PrescriptionSerializer(qs, many=True)
+        return Response(serializer.data)
+
+    def create(self, request):
+        if not is_doctor(request.user):
+            return Response({"error": "Only doctor"}, status=403)
+
+        appt = Appointment.objects.get(id=request.data["appointment_id"])
+
+        presc = Prescription.objects.create(
+            appointment=appt,
+            doctor=request.user,
+            patient=appt.patient,
+            medications=request.data["medications"],
+            portion=request.data["portion"],
+            notes=request.data.get("notes", "")
+        )
+
+        return Response(PrescriptionSerializer(presc).data)
+
+
+
+class BillingViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+
+    def list(self, request):
+        if not is_pharmacist(request.user):
+            return Response({"error": "Only pharmacist"}, status=403)
+
+        prescription = Prescription.objects.filter(
+            billing__isnull=True
+        ).order_by('created_at').first()
+
+        if not prescription:
+            return Response({"message": "No pending billing"})
+
+        return Response({"prescription_id": prescription.id,"patient": prescription.appointment.patient.username,
+                        "doctor": prescription.appointment.doctor.username,"token": prescription.appointment.token_number})
+
+    def create(self, request):
+        if not is_pharmacist(request.user):
+            return Response({"error": "Only pharmacist"}, status=403)
+
+        prescription = Prescription.objects.filter(
+            billing__isnull=True
+        ).order_by('created_at').first()
+
+        if not prescription:
+            return Response({"error": "No prescription pending"}, status=400)
+
+        bill = Billing.objects.create(
+            prescription=prescription,
+            appointment=prescription.appointment,
+            total_amount=request.data.get('total_amount'),
+            payment_status='PAID'
+        )
+
+        appointment = prescription.appointment
+        appointment.status = 'COMPLETED'
+        appointment.save()
+
+        return Response(
+            BillingSerializer(bill).data,status=status.HTTP_201_CREATED)
+
