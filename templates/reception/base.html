@@ -1,0 +1,31 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hospital Management</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+
+<header>
+    <h1>Hospital Management System</h1>
+    <p>Backend Logic Demonstration</p>
+</header>
+
+<nav>
+    <a href="/">Home</a>
+    <a href="/appointments/">Appointments</a>
+    <a href="/billing-queue/">Billing</a>
+</nav>
+
+<main>
+    {% block content %}{% endblock %}
+</main>
+
+<footer>
+    <p>Practice Project • Django REST + Templates</p>
+</footer>
+
+</body>
+</html>

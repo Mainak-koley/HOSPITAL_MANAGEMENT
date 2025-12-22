@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <h2>Doctor Dashboard</h2>
+
+    {% for appt in appointments %}
+        <div class="box">
+            <p><strong>Token:</strong> {{ appt.token_number }}</p>
+            <p><strong>Patient:</strong> {{ appt.patient.username }}</p>
+
+            <a class="btn" href="/doctor/prescription/{{ appt.id }}/">
+                Write Prescription
+            </a>
+        </div>
+    {% empty %}
+        <p>No active appointments.</p>
+    {% endfor %}
+</div>
+{% endblock %}

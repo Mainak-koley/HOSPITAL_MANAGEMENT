@@ -4,7 +4,9 @@ from django.utils import timezone
 
 class User(AbstractUser):
     ROLE_CHOICES = (
+        ('DOCTOR', 'Doctor'),
         ('PATIENT', 'Patient'),
+        ('PHARMACIST', 'Pharmacist')
     )
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, blank=True, null=True)
     email = models.EmailField(unique=True)

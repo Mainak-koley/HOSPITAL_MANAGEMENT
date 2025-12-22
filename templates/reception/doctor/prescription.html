@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <h2>Write Prescription</h2>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <label>Medications (JSON)</label>
+        <textarea name="medications" required></textarea>
+
+        <label>Portion</label>
+        <textarea name="portion" required></textarea>
+
+        <label>Notes</label>
+        <textarea name="notes"></textarea>
+
+        <button class="btn">Save Prescription</button>
+    </form>
+</div>
+{% endblock %}
