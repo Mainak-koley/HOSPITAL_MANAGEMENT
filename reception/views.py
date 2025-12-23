@@ -123,12 +123,15 @@ class PrescriptionViewSet(viewsets.ViewSet):
         if not is_doctor(request.user):
             return Response({"error": "Only doctor"}, status=403)
 
-        appt = Appointment.objects.get(id=request.data["appointment_id"])
+        appointment = Appointment.objects.filter(
+            doctor=request.user,
+            status="PENDING"
+        ).order_by("token_number").first()
 
         presc = Prescription.objects.create(
-            appointment=appt,
+            appointment=appointment,
             doctor=request.user,
-            patient=appt.patient,
+            patient=appointment.patient,
             medications=request.data["medications"],
             portion=request.data["portion"],
             notes=request.data.get("notes", "")
