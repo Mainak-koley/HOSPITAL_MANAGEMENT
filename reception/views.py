@@ -3,13 +3,11 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
 from .models import Appointment, PatientProfile, Prescription, Billing
 from .serializers import PatientProfileSerializer, PatientRegisterSerializer, AppointmentSerializer, PrescriptionSerializer, BillingSerializer
 
 User = get_user_model()
-
-
 
 def is_patient(user):
     return user.role == 'PATIENT'
@@ -70,14 +68,12 @@ class AppointmentViewSet(viewsets.ViewSet):
                 status=400
             )
 
-        # CASE-INSENSITIVE doctor search
         doctor = get_object_or_404(
             User,
             username__iexact=doctor_name,
             is_superuser=True
         )
 
-        # Token logic (starts from 1 every day)
         token = Appointment.objects.filter(
             doctor=doctor,
             appointment_date=appointment_date
