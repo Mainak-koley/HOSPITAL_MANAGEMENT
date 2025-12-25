@@ -57,5 +57,5 @@ class BillingSerializer(serializers.ModelSerializer):
     token_number = serializers.IntegerField(source='appointment.token_number',read_only=True)
     class Meta:
         model = Billing
-        fields = ['token_number','doctor_name','patient_name','total_amount','payment_status']
-        read_only_fields = ['token_number','doctor_name','patient_name','payment_status']
+        fields = ['id','token_number','doctor_name','patient_name','total_amount','payment_status']
+        read_only_fields = ['id','token_number','doctor_name','patient_name']

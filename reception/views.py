@@ -145,41 +145,53 @@ class BillingViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
     def list(self, request):
-        if not is_pharmacist(request.user):
-            return Response({"error": "Only pharmacist"}, status=403)
+        user = request.user
 
-        prescription = Prescription.objects.filter(
-            billing__isnull=True
-        ).order_by('created_at').first()
+        if is_pharmacist(user):
+            qs = Billing.objects.all()
 
-        if not prescription:
-            return Response({"message": "No pending billing"})
+        elif is_patient(user):
+            qs = Billing.objects.filter(
+                prescription__appointment__patient=user
+            )
 
-        return Response({"prescription_id": prescription.id,"patient": prescription.appointment.patient.username,
-                        "doctor": prescription.appointment.doctor.username,"token": prescription.appointment.token_number})
+        elif is_doctor(user):
+            qs = Billing.objects.filter(
+                prescription__appointment__doctor=user
+            )
+
+        else:
+            return Response({"error": "Access denied"}, status=403)
+
+        return Response(BillingSerializer(qs, many=True).data)
 
     def create(self, request):
         if not is_pharmacist(request.user):
             return Response({"error": "Only pharmacist"}, status=403)
 
-        prescription = Prescription.objects.filter(
-            billing__isnull=True
-        ).order_by('created_at').first()
+        prescription = Prescription.objects.filter(billing__isnull=True).order_by('created_at').first()
 
         if not prescription:
             return Response({"error": "No prescription pending"}, status=400)
 
+        payment_status = request.data.get("payment_status", "PENDING")
+
         bill = Billing.objects.create(
             prescription=prescription,
             appointment=prescription.appointment,
-            total_amount=request.data.get('total_amount'),
-            payment_status='PAID'
+            total_amount=request.data.get("total_amount"),
+            payment_status=payment_status
         )
 
-        appointment = prescription.appointment
-        appointment.status = 'COMPLETED'
-        appointment.save()
+        if payment_status == "PAID":
+            appointment = prescription.appointment
+            appointment.status = "COMPLETED"
+            appointment.save()
 
         return Response(
-            BillingSerializer(bill).data,status=status.HTTP_201_CREATED)
+            BillingSerializer(bill).data,
+            status=status.HTTP_201_CREATED
+        )
+
+
 
