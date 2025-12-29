@@ -46,10 +46,7 @@ class AppointmentViewSet(viewsets.ViewSet):
 
     def list(self, request):
         if request.user.is_superuser:
-            qs = Appointment.objects.filter(
-                doctor=request.user,
-                appointment_date=timezone.now().date()
-            )
+            qs = Appointment.objects.filter(doctor=request.user,appointment_date=timezone.now().date())
         else:
             qs = Appointment.objects.filter(patient=request.user)
 
@@ -63,33 +60,12 @@ class AppointmentViewSet(viewsets.ViewSet):
         appointment_date = request.data.get("appointment_date")
 
         if not doctor_name or not appointment_date:
-            return Response(
-                {"error": "doctor_name and appointment_date required"},
-                status=400
-            )
+            return Response({"error": "doctor_name and appointment_date required"},status=400)
 
-        doctor = get_object_or_404(
-            User,
-            username__iexact=doctor_name,
-            is_superuser=True
-        )
-
-        token = Appointment.objects.filter(
-            doctor=doctor,
-            appointment_date=appointment_date
-        ).count() + 1
-
-        appointment = Appointment.objects.create(
-            patient=request.user,
-            doctor=doctor,
-            appointment_date=appointment_date,
-            token_number=token
-        )
-
-        return Response(
-            AppointmentSerializer(appointment).data,
-            status=status.HTTP_201_CREATED
-        )
+        doctor = get_object_or_404(User,username__iexact=doctor_name,is_superuser=True)
+        token = Appointment.objects.filter(doctor=doctor,appointment_date=appointment_date).count() + 1
+        appointment = Appointment.objects.create(patient=request.user,doctor=doctor,appointment_date=appointment_date,token_number=token)
+        return Response(AppointmentSerializer(appointment).data,status=status.HTTP_201_CREATED)
 
     def update(self, request, pk=None):
         if not request.user.is_superuser:
@@ -123,10 +99,7 @@ class PrescriptionViewSet(viewsets.ViewSet):
         if not is_doctor(request.user):
             return Response({"error": "Only doctor"}, status=403)
 
-        appointment = Appointment.objects.filter(
-            doctor=request.user,
-            status="PENDING"
-        ).order_by("token_number").first()
+        appointment = Appointment.objects.filter(doctor=request.user,status="PENDING").order_by("token_number").first()
 
         presc = Prescription.objects.create(
             appointment=appointment,
@@ -149,17 +122,14 @@ class BillingViewSet(viewsets.ViewSet):
 
         if is_pharmacist(user):
             qs = Billing.objects.all()
-
         elif is_patient(user):
             qs = Billing.objects.filter(
                 prescription__appointment__patient=user
             )
-
         elif is_doctor(user):
             qs = Billing.objects.filter(
                 prescription__appointment__doctor=user
             )
-
         else:
             return Response({"error": "Access denied"}, status=403)
 
